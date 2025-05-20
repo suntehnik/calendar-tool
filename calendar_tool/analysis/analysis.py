@@ -275,7 +275,7 @@ def analyze_calendar(app_dir, config):
     # Calculate date range (past week)
     start_date = datetime.now().date()
     start_date += timedelta(days=-start_date.weekday(), weeks=-1)
-    end_date = start_date + timedelta(days=5)
+    end_date = start_date + timedelta(days=4)
     
     print(f"Analyzing calendar from {start_date} to {end_date}...")
     print(f"Work hours: {config['start_time']} - {config['end_time']}")

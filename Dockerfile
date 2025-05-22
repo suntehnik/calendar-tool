@@ -11,5 +11,5 @@ COPY . /app
 RUN pip install --upgrade pip \
     && pip install .
 
-# Default command (can be overridden)
-CMD ["calendar-tool"]
+# Default entrypoint passes arguments to calendar-tool
+ENTRYPOINT ["calendar-tool"]

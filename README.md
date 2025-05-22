@@ -98,4 +98,30 @@ calendar-tool analyze --start-time 8:00 --end-time 17:00
 
 - Python 3.6 or higher
 - Microsoft 365 account or corporate Exchange server
+
+## Docker Usage
+
+You can run the Calendar Tool in a Docker container without installing Python or dependencies on your system.
+
+### Build the Docker Image
+
+```bash
+docker build -t calendar-tool .
+```
+
+### Run the Tool via Docker
+
+You can run the tool just like the CLI, for example:
+
+```bash
+docker run --rm -it calendar-tool analyze --start-time 8:00 --end-time 17:00
+```
+
+If you need to persist configuration or cache files, you can mount a local directory:
+
+```bash
+docker run --rm -it -v $(pwd)/.calendar-tool:/root/.calendar-tool calendar-tool analyze
+```
+
+Replace `analyze` and its arguments with any supported command as shown above.
 - Internet connection for authentication

@@ -43,66 +43,13 @@ def get_calendar_events(account, start_date, end_date, config):
     # Use OAuth authentication by default
     use_oauth = config.get("use_oauth", True)
     
-    if use_oauth:
-        return get_o365_calendar_events(account, start_date, end_date)
-    else:
-        return get_legacy_calendar_events(account, start_date, end_date)
 
+    return get_calendar_events(account, start_date, end_date)
 
-def get_o365_calendar_events(account, start_date, end_date):
-    """
-    Get calendar events using O365 API.
-    
-    Args:
-        account: Authenticated O365 account object
-        start_date: Start date for events retrieval
-        end_date: End date for events retrieval
-        
-    Returns:
-        list: List of calendar events
-    """
-    try:
-        # Get the local timezone
-        local_timezone = tz.tzlocal()
-        
-        # Get schedule object
-        schedule = account.schedule()
-        calendar = schedule.get_default_calendar()
-        
-        # Convert dates to datetime
-        start_datetime = datetime.combine(start_date, time(0, 0, 0))
-        end_datetime = datetime.combine(end_date, time(23, 59, 59))
-        
-        # Query calendar items for the date range
-        q = calendar.new_query('start').greater_equal(start_datetime)
-        q.chain('and').on_attribute('end').less_equal(end_datetime)
-        
-        events_result = calendar.get_events(query=q, include_recurring=True)
-        
-        # Convert to list of dictionaries for easier processing
-        events = []
-        for event in events_result:
-            # Make sure the event has start and end times
-            if event.start and event.end:
-                # Convert to local timezone and strip tzinfo for consistency
-                start_local = event.start.astimezone(local_timezone).replace(tzinfo=None)
-                end_local = event.end.astimezone(local_timezone).replace(tzinfo=None)
-                
-                events.append({
-                    "subject": event.subject or "No Subject",
-                    "start": start_local,
-                    "end": end_local
-                })
-        
-        return events
-    except Exception as e:
-        print(f"Error retrieving calendar events: {e}")
-        sys.exit(1)
-
-
-def get_legacy_calendar_events(account, start_date, end_date):
+def get_calendar_events(account, start_date, end_date):
     """
     Get calendar events using exchangelib (legacy).
+    Only includes accepted events and events where user is organizer.
     
     Args:
         account: Authenticated exchangelib account object
@@ -136,11 +83,38 @@ def get_legacy_calendar_events(account, start_date, end_date):
         events = []
         for item in calendar_items:
             if isinstance(item, CalendarItem):
-                events.append({
-                    "subject": item.subject or "No Subject",
-                    "start": item.start.astimezone(timezone).replace(tzinfo=None),
-                    "end": item.end.astimezone(timezone).replace(tzinfo=None)
-                })
+                # Check if event should be considered as busy time
+                # Include only events where user is organizer or has accepted
+                should_include = False
+                
+                try:
+                    # Check if user is organizer
+                    if hasattr(item, 'is_from_me') and item.is_from_me:
+                        should_include = True
+                    # Check my_response_type for exchangelib
+                    elif hasattr(item, 'my_response_type'):
+                        # Include only if accepted
+                        if str(item.my_response_type) in ['Accept', 'Organizer']:
+                            should_include = True
+                    # If no response info available, assume organizer
+                    else:
+                        should_include = True
+                        
+                    # Also check legacy_free_busy_status - exclude if marked as Free
+                    if hasattr(item, 'legacy_free_busy_status'):
+                        if str(item.legacy_free_busy_status) == 'Free':
+                            should_include = False
+                            
+                except AttributeError:
+                    # If we can't determine status, assume organizer
+                    should_include = True
+                
+                if should_include:
+                    events.append({
+                        "subject": item.subject or "No Subject",
+                        "start": item.start.astimezone(timezone).replace(tzinfo=None),
+                        "end": item.end.astimezone(timezone).replace(tzinfo=None)
+                    })
         
         return events
     except Exception as e:
@@ -274,14 +248,14 @@ def analyze_calendar(app_dir, config):
     
     # Calculate date range (past week)
     start_date = datetime.now().date()
-    start_date += timedelta(days=-start_date.weekday(), weeks=-1)
+    start_date += timedelta(days=-start_date.weekday(), weeks=-5)
     end_date = start_date + timedelta(days=4)
     
     print(f"Analyzing calendar from {start_date} to {end_date}...")
     print(f"Work hours: {config['start_time']} - {config['end_time']}")
     
     # Get calendar events
-    events = get_calendar_events(account, start_date, end_date, config)
+    events = get_calendar_events(account, start_date, end_date)
     
     if not events:
         print("No calendar events found for the specified period.")
